@@ -183,3 +183,17 @@ def test_413_shrinks_context_budget_and_retries_same_step(client):
     assert res.finished and res.infra_error is None and res.steps == 4
     assert any(e.get("note") == "context_budget_reduced" for e in logged)
     assert max(seen) <= 9000
+
+
+def test_old_spec_responses_are_condensed_to_an_endpoint_index_not_dropped(client):
+    from harness.agent import condense_spec, fit_context
+    spec = "HTTP 200\n" + json.dumps(client.get("/app/openapi.json").json(), separators=(",", ":"))
+    index = condense_spec(spec)
+    assert index.startswith("[condensed OpenAPI index for /app")
+    assert "PATCH /app/users/{user_id} body{status,title,manager_email,role}" in index
+    assert "GET /app/tenants/{tenant_id}/member-list" in index
+    assert condense_spec("HTTP 200\n{\"items\": []}") is None
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "t"}, {"role": "tool", "content": spec}]
+    msgs += [{"role": "tool", "content": "x" * 2500} for _ in range(3)]
+    out = fit_context(msgs, 11000)
+    assert out[2]["content"] == index

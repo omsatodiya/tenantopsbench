@@ -94,6 +94,32 @@ def _context_size(messages: list[dict[str, Any]]) -> int:
     return sum(len(str(m.get("content") or "")) + len(json.dumps(m.get("tool_calls", ""))) for m in messages)
 
 
+def condense_spec(content: str) -> str | None:
+    """If a tool response is an OpenAPI spec, return a compact endpoint index of it (else None).
+    Used instead of a plain elision so an agent under a tight context budget keeps what it already learned."""
+    head, _, body = content.partition("\n")
+    try:
+        spec = json.loads(body if head.startswith("HTTP ") else content)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(spec, dict) or "paths" not in spec or "openapi" not in spec:
+        return None
+    base = (spec.get("servers") or [{}])[0].get("url", "")
+    schemas = spec.get("components", {}).get("schemas", {})
+    lines = [f"[condensed OpenAPI index for {base} (full spec: GET {base}/openapi.json)]"]
+    for path, ops in spec["paths"].items():
+        for method, op in ops.items():
+            params = [p["name"] for p in op.get("parameters", []) if p.get("in") == "query"]
+            body = ""
+            ref = op.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema", {}).get("$ref")
+            if ref:
+                fields = schemas.get(ref.rsplit("/", 1)[-1], {}).get("properties", {})
+                body = " body{" + ",".join(fields) + "}"
+            q = (" ?" + "&".join(params)) if params else ""
+            lines.append(f"{method.upper()} {base}{path}{q}{body} - {op.get('summary', '')}")
+    return "\n".join(lines)
+
+
 def fit_context(messages: list[dict[str, Any]], budget_chars: int | None) -> list[dict[str, Any]]:
     """Return a copy of `messages` within `budget_chars`, eliding the oldest tool responses first.
     System prompt, ticket and the agent's own messages are always kept. Used for providers with small
@@ -107,8 +133,17 @@ def fit_context(messages: list[dict[str, Any]], budget_chars: int | None) -> lis
         if size() <= budget_chars:
             break
         c = out[i]["content"]
-        if len(c) > ELIDED_KEEP + 80:
+        condensed = condense_spec(c)
+        if condensed is not None and len(condensed) < len(c):
+            out[i]["content"] = condensed
+        elif len(c) > ELIDED_KEEP + 80:
             out[i]["content"] = c[:ELIDED_KEEP] + f"...[older response elided to fit context: {len(c)} chars; re-request if needed]"
+    for i in tool_idx[:-1]:  # still too big: condensed spec indexes go last
+        if size() <= budget_chars:
+            break
+        c = out[i]["content"]
+        if c.startswith("[condensed OpenAPI index") and len(c) > ELIDED_KEEP + 80:
+            out[i]["content"] = c[:ELIDED_KEEP] + "...[index elided to fit context; re-request the spec if needed]"
     over = size() - budget_chars
     if over > 0 and tool_idx:  # the latest response alone is too big: cut its tail
         i = tool_idx[-1]
