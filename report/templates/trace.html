@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ trial.task }} · trial {{ trial.trial }} · {{ run.model }}</title>
+{% include "base.css.html" %}
+</head><body>
+<p><a href="../../index.html">← all results</a></p>
+<h1>{{ trial.task }} <span class="muted">· trial {{ trial.trial }}</span></h1>
+<p><strong>{{ run.model }}</strong> ·
+{% if trial.infra_error %}<span class="pill infra">INFRA ERROR</span>{% elif trial.passed %}<span class="pill pass">PASS</span>{% else %}<span class="pill fail">FAIL</span>{% endif %}
+· {{ trial.steps }} steps · stop: {{ trial.stop_reason }} · tokens {{ trial.tokens_in }} in / {{ trial.tokens_out }} out
+· cost ${{ "%.4f"|format(trial.cost_usd) }}{% if trial.list_cost_usd is not none %} (list ${{ "%.4f"|format(trial.list_cost_usd) }}){% endif %}</p>
+{% if trial.failure_tags %}<p>Failure modes: {% for t in trial.failure_tags %}<span class="pill fail" title="{{ definitions[t] }}">{{ t }}</span> {% endfor %}</p>{% endif %}
+{% if trial.infra_error %}<pre>{{ trial.infra_error }}</pre>{% endif %}
+
+<h2>Ticket</h2>
+<pre>{{ meta.ticket }}</pre>
+
+<h2>Verifiers</h2>
+<table><tr><th>Axis</th><th>Assertion</th><th>Result</th><th>Detail</th></tr>
+{% for v in trial.verifiers %}
+<tr style="{{ '' if v.passed else 'background: var(--failbg)' }}"><td>{{ v.axis }}</td><td>{{ v.name }}</td>
+<td><span class="pill {{ 'pass' if v.passed else 'fail' }}">{{ 'pass' if v.passed else 'FAIL' }}</span></td>
+<td><code>{{ v.detail if not v.passed else '' }}</code></td></tr>
+{% endfor %}</table>
+
+<h2>Agent summary</h2>
+<pre>{{ trial.summary or "(agent did not call finish)" }}</pre>
+
+<h2>Trace</h2>
+{% for s in steps %}
+{% set writes = s.tool_calls|default([])|selectattr("tool", "in", ["http_post", "http_patch", "http_delete"])|list %}
+<div class="step {{ 'write' if writes else '' }}">
+<strong>Step {{ s.step }}</strong> <span class="muted">{% if s.latency_s is defined %}{{ s.latency_s }}s{% endif %}
+{% if s.tokens_in is defined %}· {{ s.tokens_in }}/{{ s.tokens_out }} tok{% endif %}</span>
+{% if s.error %}<span class="pill infra">{{ s.error }}</span><pre>{{ s.detail }}</pre>{% endif %}
+{% if s.model_message %}<pre>{{ s.model_message }}</pre>{% endif %}
+{% if s.note %}<span class="muted">({{ s.note }})</span>{% endif %}
+{% for c in s.tool_calls|default([]) %}
+<details{% if c.tool in ["http_post", "http_patch", "http_delete", "finish"] %} open{% endif %}>
+<summary><code><strong>{{ c.request.method or c.tool }}</strong> {{ c.request.path or "" }}</code>
+{% if c.status is not none %}<span class="pill {{ 'pass' if c.status and c.status < 400 else 'fail' }}">{{ c.status }}</span>{% endif %}</summary>
+<div class="muted">arguments</div><pre>{{ c.args|tojson(indent=2) }}</pre>
+{% if c.response %}<div class="muted">response</div><pre>{{ c.response|pretty }}</pre>{% endif %}
+</details>
+{% endfor %}
+</div>
+{% endfor %}
+</body></html>

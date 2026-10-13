@@ -1,0 +1,27 @@
+<style>
+  :root { --fg:#1d232b; --muted:#5f6b7a; --line:#e3e7ec; --bg:#fbfcfd; --pass:#1f7a4d; --passbg:#e3f4ea;
+          --fail:#b4232c; --failbg:#fbe7e8; --warn:#8a5a00; --warnbg:#fdf1d8; --accent:#2f5bd3; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); background: var(--bg);
+         margin: 0 auto; max-width: 1180px; padding: 28px 24px 80px; }
+  h1 { font-size: 24px; margin: 0 0 4px; } h2 { font-size: 18px; margin: 36px 0 10px; }
+  .muted { color: var(--muted); } a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+  table { border-collapse: collapse; width: 100%; background: #fff; border: 1px solid var(--line); }
+  th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { background: #f3f5f8; font-weight: 600; font-size: 13px; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .pass { background: var(--passbg); color: var(--pass); } .fail { background: var(--failbg); color: var(--fail); }
+  .infra { background: var(--warnbg); color: var(--warn); }
+  .bar { height: 8px; background: var(--line); border-radius: 4px; min-width: 80px; }
+  .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  code, pre { font: 12px/1.45 ui-monospace, Consolas, monospace; }
+  pre { background: #f6f8fa; border: 1px solid var(--line); padding: 8px; overflow-x: auto; white-space: pre-wrap;
+        word-break: break-word; max-height: 420px; overflow-y: auto; margin: 6px 0; }
+  details { border: 1px solid var(--line); background: #fff; border-radius: 6px; margin: 6px 0; padding: 4px 10px; }
+  details > summary { cursor: pointer; padding: 4px 0; }
+  .step { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; margin: 14px 0; }
+  .step.write { border-left-color: var(--accent); }
+  .cell a { margin-right: 4px; }
+  .legend dt { font-weight: 600; } .legend dd { margin: 0 0 6px 0; color: var(--muted); }
+</style>

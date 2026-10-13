@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TenantOpsBench results</title>
+{% include "base.css.html" %}
+</head><body>
+<h1>TenantOpsBench</h1>
+<p class="muted">Can LLM agents resolve realistic support and ops tickets at a multi-tenant SaaS company?
+Mocked services with messy seeded data, tool discovery from a single catalog endpoint, and deterministic
+verifiers over the final database state. {{ tasks|length }} tasks, {{ runs|length }} run(s).</p>
+
+{% if not leaderboard %}
+<p><strong>No model results yet.</strong> Run <code>tob run --model provider:model</code>, then <code>tob report</code>.</p>
+{% else %}
+<h2>Leaderboard</h2>
+<table>
+<tr><th>Model</th><th class="num">pass@1</th><th></th><th class="num">± std err</th><th class="num">passed / valid trials</th>
+<th class="num">infra errors</th><th class="num">avg cost (billed)</th><th class="num">avg cost (list price)</th>
+<th class="num">avg output tokens</th><th class="num">avg input tokens</th><th class="num">avg steps</th></tr>
+{% for r in leaderboard %}
+<tr><td><strong>{{ r.model }}</strong></td>
+<td class="num">{{ r.pass_at_1|pct }}</td><td><div class="bar"><span style="width: {{ 100*r.pass_at_1 }}%"></span></div></td>
+<td class="num">{{ "%.0f"|format(100*r.std_err) }} pp</td>
+<td class="num">{{ r.passed_trials }} / {{ r.valid_trials }}</td><td class="num">{{ r.infra_errors }}</td>
+<td class="num">${{ "%.4f"|format(r.avg_cost_usd) }}</td><td class="num">${{ "%.4f"|format(r.avg_list_cost_usd) }}</td>
+<td class="num">{{ "%.0f"|format(r.avg_output_tokens) }}</td><td class="num">{{ "%.0f"|format(r.avg_input_tokens) }}</td>
+<td class="num">{{ "%.1f"|format(r.avg_steps) }}</td></tr>
+{% endfor %}
+</table>
+<p class="muted">pass@1 = mean over trial repeats of the fraction of tasks passed; std err across repeats. A trial passes only if
+<em>every</em> JUDGMENT, FOOTPRINT and SAFETY assertion passes. Infra errors (provider outages, quota) are excluded.
+Free-tier runs are billed at $0; "list price" is what the same tokens would cost at published prices.</p>
+
+<h2>Task × model</h2>
+<table>
+<tr><th>Task</th>{% for m in models %}<th>{{ m }}</th>{% endfor %}</tr>
+{% for tid, meta in tasks.items() %}
+<tr><td><strong>{{ tid }}</strong><br><span class="muted">{{ meta.title }} · {{ meta.difficulty }}</span></td>
+{% for m in models %}{% set c = matrix[(m, tid)] %}
+<td class="cell">{% if c.trials %}<strong>{{ c.passed }}/{{ c.valid }}</strong>{% if c.infra %} <span class="pill infra">{{ c.infra }} infra</span>{% endif %}<br>
+{% for t in c.trials %}<a href="{{ t.href }}" title="{{ t.tag }}"><span class="pill {{ 'infra' if t.infra else ('pass' if t.passed else 'fail') }}">t{{ t.k }}{% if not t.passed and t.tag %} · {{ t.tag }}{% endif %}</span></a>{% endfor %}
+{% else %}<span class="muted">not run</span>{% endif %}</td>
+{% endfor %}</tr>
+{% endfor %}
+</table>
+
+<h2>Where trials fail: per-axis breakdown</h2>
+<table>
+<tr><th>Model</th><th class="num">valid trials</th>{% for a in axes %}<th class="num">{{ a }} failed</th>{% endfor %}</tr>
+{% for r in axis_rows %}
+<tr><td>{{ r.model }}</td><td class="num">{{ r.n }}</td>{% for a in axes %}<td class="num">{{ r.fail[a]|pct }}</td>{% endfor %}</tr>
+{% endfor %}
+</table>
+<p class="muted">Share of trials in which at least one assertion on that axis failed. JUDGMENT = found the true root cause and
+took the right action; FOOTPRINT = every related record, ticket and notification left consistent; SAFETY = no excess
+or destructive change.</p>
+
+<h2>Failure modes (primary tag per failed trial)</h2>
+<table>
+<tr><th>Model</th>{% for tag in tag_order if tag != "infra_error" %}<th class="num">{{ tag }}</th>{% endfor %}</tr>
+{% for r in tag_rows %}
+<tr><td>{{ r.model }}</td>{% for tag in tag_order if tag != "infra_error" %}<td class="num">{{ r.counts.get(tag, 0) or "" }}</td>{% endfor %}</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+<h2>Failure-mode definitions</h2>
+<dl class="legend">{% for tag in tag_order %}<dt>{{ tag }}</dt><dd>{{ definitions[tag] }}</dd>{% endfor %}</dl>
+
+<h2>Runs</h2>
+<table><tr><th>Run</th><th>Model</th><th>Trials/task</th><th>Max steps</th><th>Temperature</th><th>Started (UTC)</th></tr>
+{% for r in runs %}<tr><td><code>{{ r.run_id }}</code></td><td>{{ r.model }}</td><td>{{ r.trials_per_task }}</td><td>{{ r.max_steps }}</td><td>{{ r.temperature }}</td><td>{{ r.started_at[:19] }}</td></tr>{% endfor %}
+</table>
+</body></html>
