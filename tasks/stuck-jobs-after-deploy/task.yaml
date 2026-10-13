@@ -1,0 +1,12 @@
+id: stuck-jobs-after-deploy
+title: Scheduled reports missing after a deploy
+role: Platform support engineer
+difficulty: hard
+relevant_services: [jobs, audit, helpdesk]
+corroboration_paths: ["/audit/events"]
+prompt: |
+  Helpdesk ticket #{ticket_id} (priority: high)
+  From: {requester}
+  Subject: Scheduled reports missing this morning
+
+  Our weekly scheduled reports did not arrive this morning. They have worked for months.

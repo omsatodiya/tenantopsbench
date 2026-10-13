@@ -1,0 +1,12 @@
+id: tenant-plan-limit
+title: Seat limit after an upgrade
+role: Customer support engineer
+difficulty: easy
+relevant_services: [app_db, billing, helpdesk]
+corroboration_paths: ["/billing/subscriptions", "/billing/charges", "/billing/customers"]
+prompt: |
+  Helpdesk ticket #{ticket_id} (priority: high)
+  From: {requester}
+  Subject: Can't invite new user after upgrading
+
+  We upgraded to the Team plan yesterday but we still can't invite a 6th person. It says we've reached our seat limit.
