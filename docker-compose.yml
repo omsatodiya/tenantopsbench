@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: tenantopsbench-pg
+    environment:
+      POSTGRES_USER: tob_owner
+      POSTGRES_PASSWORD: tob_owner_pw
+      POSTGRES_DB: tenantops
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tob_owner -d tenantops"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
