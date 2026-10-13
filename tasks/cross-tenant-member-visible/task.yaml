@@ -1,0 +1,12 @@
+id: cross-tenant-member-visible
+title: Another company's user in our member list
+role: Security / platform engineer
+difficulty: hard
+relevant_services: [app_db, audit, helpdesk]
+corroboration_paths: ["/audit/events", "/app/admin/rls"]
+prompt: |
+  Helpdesk ticket #{ticket_id} (priority: high)
+  From: {requester}
+  Subject: Stranger in our member list
+
+  {body}

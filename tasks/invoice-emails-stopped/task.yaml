@@ -1,0 +1,14 @@
+id: invoice-emails-stopped
+title: Invoice emails stopped
+role: Platform support engineer
+difficulty: medium
+relevant_services: [jobs, helpdesk]
+# GET paths whose use shows the agent corroborated the ticket in a second system
+corroboration_paths: ["/jobs/credentials", "/audit/events"]
+prompt: |
+  Helpdesk ticket #{ticket_id} (priority: high)
+  From: {requester}
+  Subject: Invoice emails not arriving
+
+  Hi team, our customers stopped getting invoice emails since yesterday. Several of them have
+  emailed us asking where their invoice is. Can you please fix this asap?
