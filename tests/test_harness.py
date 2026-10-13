@@ -215,3 +215,20 @@ def test_run_resumes_and_skips_finished_trials(tmp_path, monkeypatch):
     assert len(calls) == 2  # only trial 2 ran
     summary = json.loads((out / "summary.json").read_text())
     assert sorted(t["trial"] for t in summary["trials"]) == [1, 2]
+
+
+def test_run_stops_when_daily_quota_is_exhausted(tmp_path, monkeypatch):
+    from harness.agent import InfraError
+    monkeypatch.setattr(runmod, "RESULTS", tmp_path)
+    calls = []
+
+    def factory():
+        def chat(m, t):
+            calls.append(1)
+            raise InfraError("429 rate limit ... on tokens per day (TPD): Limit 200000")
+        return chat
+
+    out = runmod.run_benchmark("groq:fake-model", task_ids="tenant-plan-limit,double-charge-refund", trials=2,
+                               chat_factory=factory, run_id="q")
+    assert len(calls) == 1  # stopped after the first quota error instead of burning every trial
+    assert json.loads((out / "summary.json").read_text())["overall"]["infra_errors"] == 1

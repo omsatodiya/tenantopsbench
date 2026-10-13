@@ -117,6 +117,10 @@ def run_benchmark(model: str, task_ids: str = "all", trials: int = 3, max_steps:
                   f"tokens={res.tokens_in}/{res.tokens_out}{' INFRA: ' + res.infra_error if res.infra_error else ''}",
                   flush=True)
             _write_summary(out, run_id, provider, model, model_name, trials, max_steps, started, tasks, records)
+            if res.infra_error and "per day" in res.infra_error:
+                print(f"[{run_id}] provider daily token quota exhausted; stopping. Re-run the same command "
+                      "after the quota resets to resume (this trial will be retried).", flush=True)
+                return out
     return out
 
 
