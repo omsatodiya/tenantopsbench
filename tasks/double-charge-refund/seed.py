@@ -18,17 +18,18 @@ def build() -> World:
     w.tables["billing.charges"] = [c for c in w.rows("billing.charges")
                                    if not (c["customer_id"] == cid and c["created_at"].month == 10)]
     desc = "Team plan - Oct 2026"
-    renew_key = f"sub_renew_{cid}_2026-10"
+    renew_key = "inv_in_77812"  # charges are keyed by invoice + attempt
     original = w.add("billing.charges", id="ch_81726354", customer_id=cid, amount_cents=49000, currency="usd",
-                     description=desc, idempotency_key=renew_key, status="succeeded",
+                     description=desc, idempotency_key=f"{renew_key}_a1", status="succeeded",
                      created_at=datetime(2026, 10, 1, 9, 0, 12, tzinfo=UTC))
-    # The renewal worker timed out waiting for the processor and retried with a suffixed key: true duplicate.
+    # The renewal worker timed out waiting for the processor and retried the same invoice: true duplicate.
     duplicate = w.add("billing.charges", id="ch_81726401", customer_id=cid, amount_cents=49000, currency="usd",
-                      description=desc, idempotency_key=f"{renew_key}:attempt-2", status="succeeded",
+                      description=desc, idempotency_key=f"{renew_key}_a2", status="succeeded",
                       created_at=datetime(2026, 10, 1, 9, 0, 53, tzinfo=UTC))
-    # Legitimate: 10 extra seats added on Oct 9 (billed for the full month, per pricing policy).
+    # Legitimate: 10 extra seats added on Oct 9 (billed for the full month, per pricing policy). Billing only
+    # shows a second October invoice with the same description; the reason lives in app_db.seat_changes.
     addon = w.add("billing.charges", id="ch_82990417", customer_id=cid, amount_cents=49000, currency="usd",
-                  description=desc, idempotency_key=f"sub_update_{cid}_2026-10-09", status="succeeded",
+                  description=desc, idempotency_key="inv_in_79034_a1", status="succeeded",
                   created_at=datetime(2026, 10, 9, 14, 22, 3, tzinfo=UTC))
     # A different customer with a declined card + retry this month: looks like two charges, is not.
     acme = w.one("billing.customers", tenant_id=2)

@@ -40,6 +40,12 @@ def ticket_commented(db, w):
     return bool(new_comments(db, w.ids["ticket_id"], public_only=True))
 
 
+@V.footprint("the customer reply explains the remaining extra charge (the seat add-on)")
+def explains_addon(db, w):
+    rows = new_comments(db, w.ids["ticket_id"], public_only=True)
+    return any("seat" in r["body"].lower() for r in rows), "no public reply mentions the seat change"
+
+
 @V.footprint("the refund is recorded with a reason that says it was a duplicate")
 def reason_duplicate(db, w):
     rows = _new_refunds(db)

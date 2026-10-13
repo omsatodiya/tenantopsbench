@@ -60,7 +60,8 @@ def run_benchmark(model: str, task_ids: str = "all", trials: int = 3, max_steps:
         from openai import OpenAI
 
         client = OpenAI(api_key=key, base_url=PROVIDERS[provider]["base_url"], timeout=120, max_retries=0)
-        chat = openai_chat(client, model_name, temperature=TEMPERATURE)
+        chat = openai_chat(client, model_name, temperature=TEMPERATURE,
+                           max_tokens=PROVIDERS[provider].get("max_tokens"))
     else:
         chat = chat_factory()
 
@@ -84,8 +85,10 @@ def run_benchmark(model: str, task_ids: str = "all", trials: int = 3, max_steps:
                     fh.flush()
 
                 log({"type": "meta", "task": task.id, "trial": k, "model": model, "ticket": ticket,
-                     "max_steps": max_steps, "temperature": TEMPERATURE})
-                res = run_agent(chat, platform, ticket, max_steps=max_steps, log=log)
+                     "max_steps": max_steps, "temperature": TEMPERATURE,
+                     "context_char_budget": PROVIDERS[provider].get("context_char_budget")})
+                res = run_agent(chat, platform, ticket, max_steps=max_steps, log=log,
+                                context_char_budget=PROVIDERS[provider].get("context_char_budget"))
                 verifiers = task.verify()
                 ok = passed(verifiers) and res.infra_error is None
                 tags = tag_trial(res.trace, verifiers, task.meta, infra_error=res.infra_error is not None)
@@ -113,6 +116,7 @@ def _write_summary(out, run_id, provider, model, model_name, trials, max_steps, 
         "run_id": run_id, "model": model, "provider": provider, "model_name": model_name,
         "started_at": started.isoformat(), "finished_at": datetime.now(timezone.utc).isoformat(),
         "trials_per_task": trials, "max_steps": max_steps, "temperature": TEMPERATURE,
+        "context_char_budget": PROVIDERS[provider].get("context_char_budget"),
         "free_tier": PROVIDERS[provider]["free_tier"],
         "overall": aggregate(records),
         "per_task": {t.id: aggregate([r for r in records if r["task"] == t.id]) for t in tasks},

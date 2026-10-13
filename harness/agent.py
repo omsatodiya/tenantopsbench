@@ -10,7 +10,7 @@ from typing import Any, Callable
 from harness.tools import BASE_URL, LOG_BODY_LIMIT, MODEL_BODY_LIMIT, TOOL_SPECS, execute, truncate
 
 SYSTEM_PROMPT = f"You are an IT/ops responder at a SaaS company. Use the HTTP tools. Start at GET {BASE_URL}/catalog."
-MAX_RETRIES = 7
+MAX_RETRIES = 12
 MAX_CONSECUTIVE_MODEL_ERRORS = 3
 
 
@@ -37,7 +37,8 @@ class TrialResult:
 ChatFn = Callable[[list[dict[str, Any]], list[dict[str, Any]]], Any]
 
 
-def openai_chat(client, model: str, temperature: float = 0.7, sleep=time.sleep) -> ChatFn:
+def openai_chat(client, model: str, temperature: float = 0.7, sleep=time.sleep, max_tokens: int | None = None,
+                max_rate_limit_wait: float = 900) -> ChatFn:
     """Wrap an `openai.OpenAI` client with retry/backoff and error classification."""
     import openai
 
@@ -45,8 +46,9 @@ def openai_chat(client, model: str, temperature: float = 0.7, sleep=time.sleep) 
         delay = 2.0
         for attempt in range(MAX_RETRIES + 1):
             try:
+                extra = {"max_tokens": max_tokens} if max_tokens else {}
                 return client.chat.completions.create(model=model, messages=messages, tools=tools,
-                                                      tool_choice="auto", temperature=temperature)
+                                                      tool_choice="auto", temperature=temperature, **extra)
             except openai.BadRequestError as e:
                 msg = str(e)
                 if any(s in msg for s in ("tool_use_failed", "Failed to call a function", "failed_generation",
@@ -64,15 +66,40 @@ def openai_chat(client, model: str, temperature: float = 0.7, sleep=time.sleep) 
                     raise InfraError(f"{e.status_code}: {str(e)[:300]}") from e
                 retry_after = e.response.headers.get("retry-after") if e.response is not None else None
                 wait = float(retry_after) if retry_after and retry_after.replace(".", "").isdigit() else delay
+                if e.status_code == 429:
+                    wait = max(wait, delay)
+                    if wait > max_rate_limit_wait:
+                        raise InfraError(f"429 rate limit, retry-after {wait:.0f}s exceeds cap: {str(e)[:200]}") from e
             except (openai.APIConnectionError, openai.APITimeoutError) as e:
                 if attempt == MAX_RETRIES:
                     raise InfraError(f"{type(e).__name__}: {str(e)[:300]}") from e
                 wait = delay
-            sleep(min(wait, 90) + random.uniform(0, 1))
+            sleep(min(wait, max_rate_limit_wait) + random.uniform(0, 1))
             delay = min(delay * 2, 90)
         raise InfraError("retries exhausted")
 
     return chat
+
+
+ELIDED_KEEP = 300
+
+
+def fit_context(messages: list[dict[str, Any]], budget_chars: int | None) -> list[dict[str, Any]]:
+    """Return a copy of `messages` within `budget_chars`, eliding the oldest tool responses first.
+    System prompt, ticket and the agent's own messages are always kept. Used for providers with small
+    per-request token limits; the full, un-elided transcript is still what gets logged."""
+    if budget_chars is None:
+        return messages
+    out = [dict(m) for m in messages]
+    size = lambda: sum(len(str(m.get("content") or "")) + len(json.dumps(m.get("tool_calls", ""))) for m in out)
+    tool_idx = [i for i, m in enumerate(out) if m["role"] == "tool"]
+    for i in tool_idx[:-1]:  # never elide the most recent tool result
+        if size() <= budget_chars:
+            break
+        c = out[i]["content"]
+        if len(c) > ELIDED_KEEP + 80:
+            out[i]["content"] = c[:ELIDED_KEEP] + f"...[older response elided to fit context: {len(c)} chars; re-request if needed]"
+    return out
 
 
 def _assistant_message(msg) -> dict[str, Any]:
@@ -85,7 +112,8 @@ def _assistant_message(msg) -> dict[str, Any]:
 
 
 def run_agent(chat: ChatFn, platform_client, ticket: str, max_steps: int = 40,
-              log: Callable[[dict[str, Any]], None] | None = None) -> TrialResult:
+              log: Callable[[dict[str, Any]], None] | None = None,
+              context_char_budget: int | None = None) -> TrialResult:
     res = TrialResult()
     messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT},
                                       {"role": "user", "content": ticket}]
@@ -100,7 +128,7 @@ def run_agent(chat: ChatFn, platform_client, ticket: str, max_steps: int = 40,
         res.steps = step
         t0 = time.perf_counter()
         try:
-            resp = chat(messages, TOOL_SPECS)
+            resp = chat(fit_context(messages, context_char_budget), TOOL_SPECS)
         except InfraError as e:
             res.infra_error, res.stop_reason = str(e), "infra_error"
             record({"step": step, "error": "infra_error", "detail": str(e)})

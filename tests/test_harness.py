@@ -148,3 +148,15 @@ def test_aggregate_excludes_infra_errors():
     agg = runmod.aggregate([t(1, True), t(1, False), t(2, True), t(2, True), t(3, False, "429")])
     assert agg["valid_trials"] == 4 and agg["infra_errors"] == 1
     assert agg["pass_at_1"] == pytest.approx(0.75) and agg["std_err"] == pytest.approx(0.25)
+
+
+def test_fit_context_elides_oldest_tool_results_first():
+    from harness.agent import fit_context
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "ticket"}]
+    for i in range(4):
+        msgs += [{"role": "assistant", "content": "", "tool_calls": []}, {"role": "tool", "content": str(i) * 5000}]
+    out = fit_context(msgs, 9000)
+    tools = [m["content"] for m in out if m["role"] == "tool"]
+    assert "elided" in tools[0] and "elided" in tools[1] and tools[3] == "3" * 5000
+    assert msgs[3]["content"] == "0" * 5000  # original untouched
+    assert fit_context(msgs, None) is msgs

@@ -10,12 +10,14 @@ def solve(client, ids):
                                                      "created_after": "2026-10-01T00:00:00Z"}).json()["items"]
     charges.sort(key=lambda c: c["created_at"])
 
-    # Duplicate: a later charge whose idempotency key extends an earlier one's, within the same minute.
+    # Duplicate: a later attempt of the same invoice (key prefix before _aN), within the same minute.
+    def invoice(c):
+        return c["idempotency_key"].rsplit("_a", 1)[0]
+
     duplicate = None
     for i, first in enumerate(charges):
         for later in charges[i + 1:]:
-            if later["idempotency_key"].startswith(first["idempotency_key"]) and \
-                    later["created_at"][:16] == first["created_at"][:16]:
+            if invoice(later) == invoice(first) and later["created_at"][:16] == first["created_at"][:16]:
                 duplicate = later
     assert duplicate is not None
 

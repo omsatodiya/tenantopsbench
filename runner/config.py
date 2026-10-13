@@ -4,7 +4,9 @@ from __future__ import annotations
 import os
 
 PROVIDERS = {
-    "groq": {"base_url": "https://api.groq.com/openai/v1", "key_env": "GROQ_API_KEY", "free_tier": True},
+    # Groq free tier: 8,000 tokens/minute per model, and a single request above that is rejected (413).
+    "groq": {"base_url": "https://api.groq.com/openai/v1", "key_env": "GROQ_API_KEY", "free_tier": True,
+             "context_char_budget": 15000, "max_tokens": 2048},
     "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "key_env": "GEMINI_API_KEY",
                "free_tier": True},
     "openrouter": {"base_url": "https://openrouter.ai/api/v1", "key_env": "OPENROUTER_API_KEY", "free_tier": False},
@@ -16,6 +18,7 @@ LIST_PRICES = {
     "llama-3.3-70b-versatile": (0.59, 0.79),
     "openai/gpt-oss-120b": (0.15, 0.75),
     "openai/gpt-oss-20b": (0.10, 0.50),
+    # qwen/qwen3.8-27b: no published list price found; list-price cost reported as n/a
     "moonshotai/kimi-k2-instruct": (1.00, 3.00),
     "qwen/qwen3-32b": (0.29, 0.59),
     "meta-llama/llama-4-maverick-17b-128e-instruct": (0.20, 0.60),
