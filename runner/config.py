@@ -6,7 +6,7 @@ import os
 PROVIDERS = {
     # Groq free tier: 8,000 tokens/minute per model, and a single request above that is rejected (413).
     "groq": {"base_url": "https://api.groq.com/openai/v1", "key_env": "GROQ_API_KEY", "free_tier": True,
-             "context_char_budget": 15000, "max_tokens": 2048},
+             "context_char_budget": 11000, "max_tokens": 2048},
     "gemini": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "key_env": "GEMINI_API_KEY",
                "free_tier": True},
     "openrouter": {"base_url": "https://openrouter.ai/api/v1", "key_env": "OPENROUTER_API_KEY", "free_tier": False},

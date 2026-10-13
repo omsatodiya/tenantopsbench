@@ -160,3 +160,26 @@ def test_fit_context_elides_oldest_tool_results_first():
     assert "elided" in tools[0] and "elided" in tools[1] and tools[3] == "3" * 5000
     assert msgs[3]["content"] == "0" * 5000  # original untouched
     assert fit_context(msgs, None) is msgs
+
+
+def test_413_shrinks_context_budget_and_retries_same_step(client):
+    from harness.agent import RequestTooLarge, _context_size
+    load_task("invoice-emails-stopped").reset()
+    script = iter([_resp([("http_get", {"path": "/app/openapi.json"})]),
+                   _resp([("http_get", {"path": "/jobs/openapi.json"})]),
+                   _resp([("http_get", {"path": "/catalog"})]),
+                   _resp([("finish", {"summary": "ok"})])])
+    seen = []
+
+    def chat(messages, tools):
+        size = _context_size(messages)
+        if size > 9000:
+            raise RequestTooLarge("413")
+        seen.append(size)
+        return next(script)
+
+    logged = []
+    res = run_agent(chat, client, "t", log=logged.append, context_char_budget=30000)
+    assert res.finished and res.infra_error is None and res.steps == 4
+    assert any(e.get("note") == "context_budget_reduced" for e in logged)
+    assert max(seen) <= 9000

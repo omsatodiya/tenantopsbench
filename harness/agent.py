@@ -18,6 +18,10 @@ class InfraError(Exception):
     """The provider failed in a way that says nothing about the model's ability (auth, quota, outage)."""
 
 
+class RequestTooLarge(InfraError):
+    """The provider's per-request token limit was exceeded (HTTP 413)."""
+
+
 class ModelFormatError(Exception):
     """The provider rejected the model's own output (e.g. malformed tool call). Counts against the model."""
 
@@ -61,7 +65,7 @@ def openai_chat(client, model: str, temperature: float = 0.7, sleep=time.sleep, 
                 raise InfraError(f"{type(e).__name__}: {str(e)[:300]}") from e
             except openai.APIStatusError as e:
                 if e.status_code == 413:
-                    raise InfraError(f"413 request too large for provider limits: {str(e)[:300]}") from e
+                    raise RequestTooLarge(f"413 request too large for provider limits: {str(e)[:300]}") from e
                 if e.status_code not in (429, 500, 502, 503, 504) or attempt == MAX_RETRIES:
                     raise InfraError(f"{e.status_code}: {str(e)[:300]}") from e
                 retry_after = e.response.headers.get("retry-after") if e.response is not None else None
@@ -82,6 +86,12 @@ def openai_chat(client, model: str, temperature: float = 0.7, sleep=time.sleep, 
 
 
 ELIDED_KEEP = 300
+MIN_CONTEXT_BUDGET = 4000
+BUDGET_SHRINK = 0.7
+
+
+def _context_size(messages: list[dict[str, Any]]) -> int:
+    return sum(len(str(m.get("content") or "")) + len(json.dumps(m.get("tool_calls", ""))) for m in messages)
 
 
 def fit_context(messages: list[dict[str, Any]], budget_chars: int | None) -> list[dict[str, Any]]:
@@ -91,7 +101,7 @@ def fit_context(messages: list[dict[str, Any]], budget_chars: int | None) -> lis
     if budget_chars is None:
         return messages
     out = [dict(m) for m in messages]
-    size = lambda: sum(len(str(m.get("content") or "")) + len(json.dumps(m.get("tool_calls", ""))) for m in out)
+    size = lambda: _context_size(out)
     tool_idx = [i for i, m in enumerate(out) if m["role"] == "tool"]
     for i in tool_idx[:-1]:  # never elide the most recent tool result
         if size() <= budget_chars:
@@ -99,6 +109,14 @@ def fit_context(messages: list[dict[str, Any]], budget_chars: int | None) -> lis
         c = out[i]["content"]
         if len(c) > ELIDED_KEEP + 80:
             out[i]["content"] = c[:ELIDED_KEEP] + f"...[older response elided to fit context: {len(c)} chars; re-request if needed]"
+    over = size() - budget_chars
+    if over > 0 and tool_idx:  # the latest response alone is too big: cut its tail
+        i = tool_idx[-1]
+        c = out[i]["content"]
+        keep = max(len(c) - over - 200, 1000)
+        if keep < len(c):
+            out[i]["content"] = c[:keep] + (f"\n...[response truncated to fit the provider's request limit: {len(c)} chars "
+                                            "total; use filters or limit/offset to see the rest]")
     return out
 
 
@@ -128,7 +146,20 @@ def run_agent(chat: ChatFn, platform_client, ticket: str, max_steps: int = 40,
         res.steps = step
         t0 = time.perf_counter()
         try:
-            resp = chat(fit_context(messages, context_char_budget), TOOL_SPECS)
+            while True:
+                try:
+                    resp = chat(fit_context(messages, context_char_budget), TOOL_SPECS)
+                    break
+                except RequestTooLarge as e:
+                    # Provider rejected the request size: shrink the context budget and retry the same step.
+                    actual = _context_size(fit_context(messages, context_char_budget))
+                    current = min(context_char_budget or actual, actual)
+                    new_budget = int(current * BUDGET_SHRINK)
+                    if new_budget < MIN_CONTEXT_BUDGET or _context_size(fit_context(messages, new_budget)) >=                             _context_size(fit_context(messages, current)):
+                        raise
+                    context_char_budget = new_budget
+                    record({"step": step, "note": "context_budget_reduced", "context_char_budget": new_budget,
+                            "detail": str(e)[:200]})
         except InfraError as e:
             res.infra_error, res.stop_reason = str(e), "infra_error"
             record({"step": step, "error": "infra_error", "detail": str(e)})
