@@ -71,9 +71,18 @@ def run_benchmark(model: str, task_ids: str = "all", trials: int = 3, max_steps:
     out = RESULTS / run_id
     (out / "traces").mkdir(parents=True, exist_ok=True)
     records: list[dict[str, Any]] = []
+    if (out / "summary.json").exists():
+        # Resume: keep finished trials, re-run anything that ended in an infra error.
+        prev = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+        records = [r for r in prev["trials"] if not r["infra_error"]]
+        started = datetime.fromisoformat(prev["started_at"])
+        print(f"[{run_id}] resuming: {len(records)} finished trial(s) kept", flush=True)
+    done = {(r["task"], r["trial"]) for r in records}
 
     for k in range(1, trials + 1):          # repeat-major order spreads provider rate limits across tasks
         for task in tasks:
+            if (task.id, k) in done:
+                continue
             world = task.reset()
             ticket = task.prompt(world)
             trace_name = f"{task.id}__t{k}.jsonl"

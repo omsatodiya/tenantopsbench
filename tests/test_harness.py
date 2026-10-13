@@ -197,3 +197,21 @@ def test_old_spec_responses_are_condensed_to_an_endpoint_index_not_dropped(clien
     msgs += [{"role": "tool", "content": "x" * 2500} for _ in range(3)]
     out = fit_context(msgs, 11000)
     assert out[2]["content"] == index
+
+
+def test_run_resumes_and_skips_finished_trials(tmp_path, monkeypatch):
+    monkeypatch.setattr(runmod, "RESULTS", tmp_path)
+    calls = []
+
+    def factory():
+        def chat(m, t):
+            calls.append(1)
+            return _resp([("finish", {"summary": "x"})])
+        return chat
+
+    runmod.run_benchmark("groq:fake-model", task_ids="tenant-plan-limit", trials=1, chat_factory=factory, run_id="r")
+    assert len(calls) == 1
+    out = runmod.run_benchmark("groq:fake-model", task_ids="tenant-plan-limit", trials=2, chat_factory=factory, run_id="r")
+    assert len(calls) == 2  # only trial 2 ran
+    summary = json.loads((out / "summary.json").read_text())
+    assert sorted(t["trial"] for t in summary["trials"]) == [1, 2]

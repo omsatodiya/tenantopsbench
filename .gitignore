@@ -9,3 +9,4 @@ __pycache__/
 results/*/traces_raw/
 *.log
 logs/
+.serena/
