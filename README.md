@@ -62,7 +62,7 @@ Every step is logged to JSONL: model message, tool call, request, response (bodi
 tokens and latency. Rate limits back off exponentially (honouring `retry-after`). Unrecoverable provider errors
 mark the trial `infra_error`, which is excluded from the pass rate and reported separately. A malformed
 tool call counts against the model. For Groq's free tier (8K tokens/minute, enforced per request), the harness
-elides the *oldest* tool responses once the transcript passes 15K chars (see `DECISIONS.md`).
+elides the *oldest* tool responses once the transcript passes 11K chars, and shrinks that budget further if the provider still rejects a request (see `DECISIONS.md`).
 
 ### 5. Verifiers: deterministic, over final DB state
 `tasks/<id>/verifiers.py` holds 3–8 assertions per axis, written as SQL over the final state and compared
