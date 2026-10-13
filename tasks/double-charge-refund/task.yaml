@@ -1,0 +1,12 @@
+id: double-charge-refund
+title: "Charged twice this month"
+role: Billing support specialist
+difficulty: medium
+relevant_services: [billing, app_db, helpdesk]
+corroboration_paths: ["/app/seat-changes"]
+prompt: |
+  Helpdesk ticket #{ticket_id}
+  From: {requester}
+  Subject: Charged twice this month
+
+  I was charged twice this month, please refund.

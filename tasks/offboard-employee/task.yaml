@@ -1,0 +1,12 @@
+id: offboard-employee
+title: Offboard an employee
+role: IT operations
+difficulty: medium
+relevant_services: [app_db, helpdesk, audit]
+corroboration_paths: ["/audit/events"]
+prompt: |
+  Helpdesk ticket #{ticket_id}
+  From: {requester}
+  Subject: Offboarding: Priya Nair
+
+  Please offboard Priya Nair, last day today.

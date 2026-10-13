@@ -255,7 +255,7 @@ def base_world() -> World:
                   status="succeeded", created_at=created)
         _ = owner
     # one historical refund (goodwill credit)
-    some = w.rows("billing.charges")[3]
+    some = next(c for c in w.rows("billing.charges") if c["created_at"].month == 8 and c["status"] == "succeeded")
     w.add("billing.refunds", id="re_2608150001", charge_id=some["id"], amount_cents=5000,
           reason="goodwill credit for August outage", created_by="maria.support", created_at=ts(days=-55))
 
