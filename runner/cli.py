@@ -47,6 +47,21 @@ def run(
 
 
 @app.command()
+def status():
+    """Show progress of every run in results/ (finished trials, passes, infra errors)."""
+    import json
+
+    for p in sorted((ROOT / "results").glob("*/summary.json")):
+        s = json.loads(p.read_text(encoding="utf-8"))
+        trials = s["trials"]
+        expected = s["trials_per_task"] * len(s["per_task"])
+        passed = sum(t["passed"] for t in trials)
+        infra = sum(bool(t["infra_error"]) for t in trials)
+        typer.echo(f"{s['run_id']:40} {len(trials):>2}/{expected} trials  passed={passed}  infra_errors={infra}  "
+                   f"last update {s['finished_at'][:19]}Z")
+
+
+@app.command()
 def report(out: str = typer.Option("report", help="Output directory"),
            pages: bool = typer.Option(True, help="Also copy the site to docs/ for GitHub Pages")):
     """Generate the static HTML report + trace viewer from every run in results/."""
