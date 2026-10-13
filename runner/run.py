@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -61,7 +62,9 @@ def run_benchmark(model: str, task_ids: str = "all", trials: int = 3, max_steps:
 
         client = OpenAI(api_key=key, base_url=PROVIDERS[provider]["base_url"], timeout=120, max_retries=0)
         chat = openai_chat(client, model_name, temperature=TEMPERATURE,
-                           max_tokens=PROVIDERS[provider].get("max_tokens"))
+                           max_tokens=PROVIDERS[provider].get("max_tokens"),
+                           # free tiers have rolling daily quotas: wait out pauses of up to an hour
+                           max_rate_limit_wait=3600 if PROVIDERS[provider]["free_tier"] else 900)
     else:
         chat = chat_factory()
 
@@ -70,6 +73,32 @@ def run_benchmark(model: str, task_ids: str = "all", trials: int = 3, max_steps:
     run_id = run_id or f"{started:%Y%m%d-%H%M%S}_{provider}_{_slug(model_name)}"
     out = RESULTS / run_id
     (out / "traces").mkdir(parents=True, exist_ok=True)
+    lock = out / "run.lock"
+    if lock.exists() and _pid_alive(int(lock.read_text().strip() or 0)):
+        print(f"[{run_id}] already running (pid {lock.read_text().strip()}); not starting a second copy.", flush=True)
+        return out
+    lock.write_text(str(os.getpid()))
+    try:
+        return _run_trials(out, run_id, provider, model, model_name, chat, tasks, trials, max_steps, started)
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0 or pid == os.getpid():
+        return False
+    if os.name == "nt":
+        import subprocess
+        res = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True, text=True)
+        return str(pid) in res.stdout
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _run_trials(out, run_id, provider, model, model_name, chat, tasks, trials, max_steps, started) -> Path:
     records: list[dict[str, Any]] = []
     if (out / "summary.json").exists():
         # Resume: keep finished trials, re-run anything that ended in an infra error.

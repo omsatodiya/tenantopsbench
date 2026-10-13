@@ -112,7 +112,7 @@ tob validate                               # must be green before any model run
 tob run --model groq:openai/gpt-oss-120b --tasks all --trials 3
 tob report                                 # writes report/index.html and docs/ (GitHub Pages)
 ```
-To run two models in parallel, give each its own database (`createdb tenantops2`, then set
+Runs resume: re-running the same `tob run ... --run-id X` keeps finished trials and retries infra errors (`scripts/resume_runs.ps1` relaunches both Groq runs after a reboot; `tob status` shows progress). To run two models in parallel, give each its own database (`createdb tenantops2`, then set
 `TOB_DATABASE_URL`/`TOB_TENANT_DATABASE_URL` for the second process). No Docker? Install Postgres 16
 locally, create user `tob_owner` (superuser, password `tob_owner_pw`) and database `tenantops`, and point
 `TOB_DATABASE_URL` at it. The `tenant_app` role is created automatically.

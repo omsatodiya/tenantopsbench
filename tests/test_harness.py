@@ -232,3 +232,24 @@ def test_run_stops_when_daily_quota_is_exhausted(tmp_path, monkeypatch):
                                chat_factory=factory, run_id="q")
     assert len(calls) == 1  # stopped after the first quota error instead of burning every trial
     assert json.loads((out / "summary.json").read_text())["overall"]["infra_errors"] == 1
+
+
+def test_second_copy_of_a_running_run_does_not_start(tmp_path, monkeypatch):
+    import os
+    import subprocess
+    import sys
+    monkeypatch.setattr(runmod, "RESULTS", tmp_path)
+    holder = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        (tmp_path / "L" / "traces").mkdir(parents=True)
+        (tmp_path / "L" / "run.lock").write_text(str(holder.pid))
+        calls = []
+        runmod.run_benchmark("groq:fake-model", task_ids="tenant-plan-limit", trials=1,
+                             chat_factory=lambda: (lambda m, t: calls.append(1)), run_id="L")
+        assert calls == [] and (tmp_path / "L" / "run.lock").read_text() == str(holder.pid)
+    finally:
+        holder.kill()
+    # stale lock (dead pid) is ignored and cleaned up
+    runmod.run_benchmark("groq:fake-model", task_ids="tenant-plan-limit", trials=1,
+                         chat_factory=lambda: (lambda m, t: _resp([("finish", {"summary": "x"})])), run_id="L")
+    assert not (tmp_path / "L" / "run.lock").exists() and os.path.exists(tmp_path / "L" / "summary.json")
