@@ -36,7 +36,7 @@ def aggregate(trials: list[dict[str, Any]]) -> dict[str, Any]:
     rates = [sum(v) / len(v) for v in by_k.values() if v]
     mean = sum(rates) / len(rates) if rates else 0.0
     se = (math.sqrt(sum((r - mean) ** 2 for r in rates) / (len(rates) - 1)) / math.sqrt(len(rates))
-          if len(rates) > 1 else 0.0)
+          if len(rates) > 1 else None)  # undefined with a single repeat
     n = len(valid)
     return {
         "pass_at_1": mean, "std_err": se, "valid_trials": n, "passed_trials": sum(t["passed"] for t in valid),
@@ -103,7 +103,11 @@ def _run_trials(out, run_id, provider, model, model_name, chat, tasks, trials, m
     if (out / "summary.json").exists():
         # Resume: keep finished trials, re-run anything that ended in an infra error.
         prev = json.loads((out / "summary.json").read_text(encoding="utf-8"))
-        records = [r for r in prev["trials"] if not r["infra_error"]]
+        # Trials beyond the requested count (a run cut down from more trials) are dropped.
+        records = [r for r in prev["trials"] if not r["infra_error"] and r["trial"] <= trials]
+        for extra in (out / "traces").glob("*__t*.jsonl"):
+            if int(extra.stem.rsplit("__t", 1)[1]) > trials:
+                extra.unlink()
         started = datetime.fromisoformat(prev["started_at"])
         print(f"[{run_id}] resuming: {len(records)} finished trial(s) kept", flush=True)
     done = {(r["task"], r["trial"]) for r in records}
@@ -150,6 +154,7 @@ def _run_trials(out, run_id, provider, model, model_name, chat, tasks, trials, m
                 print(f"[{run_id}] provider daily token quota exhausted; stopping. Re-run the same command "
                       "after the quota resets to resume (this trial will be retried).", flush=True)
                 return out
+    _write_summary(out, run_id, provider, model, model_name, trials, max_steps, started, tasks, records)
     return out
 
 

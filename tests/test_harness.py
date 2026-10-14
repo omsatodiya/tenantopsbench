@@ -217,6 +217,17 @@ def test_run_resumes_and_skips_finished_trials(tmp_path, monkeypatch):
     assert sorted(t["trial"] for t in summary["trials"]) == [1, 2]
 
 
+def test_resume_with_fewer_trials_drops_extra_trials(tmp_path, monkeypatch):
+    monkeypatch.setattr(runmod, "RESULTS", tmp_path)
+    factory = lambda: (lambda m, t: _resp([("finish", {"summary": "x"})]))
+    runmod.run_benchmark("groq:fake-model", task_ids="tenant-plan-limit", trials=2, chat_factory=factory, run_id="c")
+    out = runmod.run_benchmark("groq:fake-model", task_ids="tenant-plan-limit", trials=1, chat_factory=factory,
+                               run_id="c")
+    summary = json.loads((out / "summary.json").read_text())
+    assert summary["trials_per_task"] == 1 and [t["trial"] for t in summary["trials"]] == [1]
+    assert sorted(p.name for p in (out / "traces").iterdir()) == ["tenant-plan-limit__t1.jsonl"]
+
+
 def test_run_stops_when_daily_quota_is_exhausted(tmp_path, monkeypatch):
     from harness.agent import InfraError
     monkeypatch.setattr(runmod, "RESULTS", tmp_path)

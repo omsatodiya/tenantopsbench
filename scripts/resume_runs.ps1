@@ -29,7 +29,7 @@ $runs = @(
 foreach ($r in $runs) {
     $env:TOB_DATABASE_URL = "postgresql://tob_owner:tob_owner_pw@localhost:5433/$($r.db)"
     $env:TOB_TENANT_DATABASE_URL = "postgresql://tenant_app:tenant_app_pw@localhost:5433/$($r.db)"
-    $cmd = "/c `"$tob`" run --model $($r.model) --tasks all --trials 3 --run-id $($r.id) >> logs\$($r.log).log 2>&1"
+    $cmd = "/c `"$tob`" run --model $($r.model) --tasks all --trials 1 --run-id $($r.id) >> logs\$($r.log).log 2>&1"
     $p = Start-Process -FilePath "cmd.exe" -ArgumentList $cmd -WorkingDirectory $root -WindowStyle Hidden -PassThru
     Write-Host "launched $($r.id) (pid $($p.Id))"
 }

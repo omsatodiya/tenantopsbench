@@ -18,8 +18,9 @@ def main() -> None:
     print("| Model | pass@1 | ± std err | passed / valid trials | infra errors | avg cost (billed) | avg cost (list price) | avg output tokens | avg steps |")
     print("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
     for m, a in rows:
+        se = f"{100 * a['std_err']:.1f} pp" if a["std_err"] is not None else "n/a (1 trial)"
         listed = f"${a['avg_list_cost_usd']:.4f}" if a["avg_list_cost_usd"] else "n/a"
-        print(f"| {m} | {100 * a['pass_at_1']:.1f}% | {100 * a['std_err']:.1f} pp | {a['passed_trials']} / {a['valid_trials']} "
+        print(f"| {m} | {100 * a['pass_at_1']:.1f}% | {se} | {a['passed_trials']} / {a['valid_trials']} "
               f"| {a['infra_errors']} | ${a['avg_cost_usd']:.4f} | {listed} | {a['avg_output_tokens']:.0f} | {a['avg_steps']:.1f} |")
     print()
     tasks = [t.id for t in all_tasks()]

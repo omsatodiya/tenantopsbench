@@ -91,7 +91,7 @@ _Runs in progress._
 
 ## Limitations (read before quoting a number)
 - **Small task count.** Six tasks is enough to show failure *modes*, not to rank models finely.
-- **Few trials.** 3 trials per task per model; the standard errors are wide, so treat differences under ~20 pp as noise.
+- **One trial per task.** The plan was 3 trials per task per model; to finish on Groq's free tier (200K tokens/day per model) the run was cut to 1. With one repeat there is no across-trial standard error, so each cell is a single sample at temperature 0.7. Treat it as evidence of failure *modes*, not a ranking. `tob run --trials 3` reruns the full plan (resuming keeps the trial-1 results).
 - **Free-tier models only.** Groq free tier (Gemini/OpenRouter keys were not provided). Llama-3.3-70B is no
   longer served by Groq, so the two strongest available models were used. The free tier's 8K tokens/minute
   forced a context budget that elides old tool responses. A paid tier with full context could score differently.
@@ -109,11 +109,11 @@ python -m venv .venv && . .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e .
 cp .env.example .env                       # add GROQ_API_KEY / GEMINI_API_KEY / OPENROUTER_API_KEY
 tob validate                               # must be green before any model run
-tob run --model groq:openai/gpt-oss-120b --tasks all --trials 3
+tob run --model groq:openai/gpt-oss-120b --tasks all --trials 1   # published run; --trials 3 for error bars
 tob report                                 # writes report/index.html and docs/ (GitHub Pages)
 ```
 Runs resume: re-running the same `tob run ... --run-id X` keeps finished trials and retries infra errors (`scripts/resume_runs.ps1` relaunches both Groq runs after a reboot; `tob status` shows progress). To run two models in parallel, give each its own database (`createdb tenantops2`, then set
-`TOB_DATABASE_URL`/`TOB_TENANT_DATABASE_URL` for the second process). No Docker? Install Postgres 16
+`TOB_DATABASE_URL`/`TOB_TENANT_DATABASE_URL` for the second process). Tests reseed every schema, so set `TOB_TEST_DATABASE_URL`/`TOB_TEST_TENANT_DATABASE_URL` (e.g. `createdb tenantops_test`) to keep `tob validate` off a database a run is using. No Docker? Install Postgres 16
 locally, create user `tob_owner` (superuser, password `tob_owner_pw`) and database `tenantops`, and point
 `TOB_DATABASE_URL` at it. The `tenant_app` role is created automatically.
 
